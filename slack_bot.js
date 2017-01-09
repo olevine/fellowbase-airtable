@@ -71,6 +71,8 @@ if (!process.env.token) {
 
 var Botkit = require('./lib/Botkit.js');
 var os = require('os');
+var http = require('http');
+var querystring = require('querystring');
 
 var controller = Botkit.slackbot({
     debug: true,
@@ -119,6 +121,8 @@ controller.hears(['call me (.*)', 'my name is (.*)'], 'direct_message,direct_men
 });
 
 controller.hears(['http(.*)', 'https(.*)'], 'direct_message,direct_mention,mention', function(bot, message) {
+	var channels;
+	
     bot.startConversation(message, function(err, convo) {
 		if (!err) {
 			convo.ask('That looks like an impact link! Should I add it to Impact Monitor?', [
@@ -145,9 +149,10 @@ controller.hears(['http(.*)', 'https(.*)'], 'direct_message,direct_mention,menti
 				}
 			]);
 			convo.ask('What project is this for?', function(response, convo) {
-                bot.reply(message, 'OK, will add to project ' + response.text);
+                bot.reply(message, 'OK, will add to channel that matches ' + response.text);
+				channels = matchIMChannel(response.text);
 				convo.next();
-			});
+			});			
 			convo.on('end', function(convo) {
 				if (convo.status == 'completed') {
                     bot.reply(message, 'We\'re done');
@@ -269,6 +274,53 @@ controller.hears(['uptime', 'identify yourself', 'who are you', 'what is your na
              '>. I have been running for ' + uptime + ' on ' + hostname + '.');
 
     });
+	
+function matchIMChannel (channel) {
+	var url = 'http://impactmonitor.net/app/api/channels.php';
+
+	var matchname = [];
+	
+	var qs = {
+        action: 'list',
+        api_key: process.env.IM_KEY_CFA
+    };
+	var query = querystring.stringify(qs);
+	
+
+	http.get(url + '?' + query, function(gtresp) {
+	//console.log("Get response: " + gtresp.statusCode);
+		
+		var body = '';
+		
+		gtresp.setEncoding('utf8');
+						
+		gtresp.on('data', function(chunk) {
+			body += chunk;
+		});
+		gtresp.on('end', function() {
+//			console.log("BODY: " + body);
+			
+			var jbody = JSON.parse(body);
+
+			if (jbody.channels) {
+				for (var i=0; i<jbody.channels.length; i++) {
+					// matches the search? (case-insensitive search!)
+					if (jbody.channels[i].name.toLowerCase().indexOf(channel.toLowerCase()) > -1) {
+						console.log('result:', jbody.channels[i].channel_id, jbody.channels[i].name);					
+						matchname.push(new Array(jbody.channels[i].channel_id, jbody.channels[i].name));
+					}
+				}
+			} 
+			else 
+			{ 
+				
+			}
+		
+		});
+	});	
+	
+	return matchname;
+}
 
 function formatUptime(uptime) {
     var unit = 'second';
