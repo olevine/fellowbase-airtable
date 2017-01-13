@@ -75,13 +75,14 @@ var http = require('http');
 var querystring = require('querystring');
 
 var controller = Botkit.slackbot({
-    debug: true,
+    debug: false,
 });
 
 var bot = controller.spawn({
     token: process.env.token
 }).startRTM();
 
+var matchchannels = [];
 
 controller.hears(['hello', 'hi'], 'direct_message,direct_mention,mention', function(bot, message) {
 
@@ -100,7 +101,7 @@ controller.hears(['hello', 'hi'], 'direct_message,direct_mention,mention', funct
         if (user && user.name) {
             bot.reply(message, 'Hello ' + user.name + '!!');
         } else {
-            bot.reply(message, 'Hello.');
+            bot.reply(message, '(local) Hello.');
         }
     });
 });
@@ -121,15 +122,55 @@ controller.hears(['call me (.*)', 'my name is (.*)'], 'direct_message,direct_men
 });
 
 controller.hears(['http(.*)', 'https(.*)'], 'direct_message,direct_mention,mention', function(bot, message) {
-	var channels;
+
 	
     bot.startConversation(message, function(err, convo) {
+		
+		var re = /<(.*)>/;
+		// message.text = <URL>
+		var inputlink = re.exec(message.text);
+		/// <URL> --> URL
+		convo.setVar('newlink', inputlink[1]);
+		var newlink = inputlink[1];
+		console.log('input message', inputlink, newlink);
+
+		// create a path for when there are matching channels
+		convo.addQuestion("Pick a channel number from the list: {{vars.channels}}",
+			function(response, convo) {
+				
+				// find the channel data in the array
+				var ids = matchchannels.map(function(chan) {return chan.id;} );
+				var idx = ids.indexOf(response.text);
+				console.log("ids", ids, idx);
+				
+				if (idx > -1) {
+					bot.reply(message, 'OK, adding to ' + matchchannels[idx].name);
+					
+					addImpactURL(newlink, matchchannels[idx].token);				
+				}
+				else {
+					bot.reply(message, "Sorry, " + response.text + " isn't on the list");					
+				}				
+				
+				convo.next();
+			},
+			'',
+			'yes_thread');
+
+		// create a path for when there are NO matching channels
+		convo.addMessage({
+			text: 'No matches for that text.',
+			action: 'stop',
+		},'no_thread');
+		
+		
 		if (!err) {
+			convo.setVar('impactlink', message.input);
 			convo.ask('That looks like an impact link! Should I add it to Impact Monitor?', [
 				{	
 					pattern: 'yes',
 					callback: function(response, convo) {
-						bot.reply(message, 'OK! I will add the link...');
+						bot.reply(message, "OK! I will add the link");
 						// go ahead and store the URL
 						convo.next();
 					}
@@ -149,13 +190,13 @@ controller.hears(['http(.*)', 'https(.*)'], 'direct_message,direct_mention,menti
 				}
 			]);
 			convo.ask('What project is this for?', function(response, convo) {
-                bot.reply(message, 'OK, will add to channel that matches ' + response.text);
-				channels = matchIMChannel(response.text);
-				convo.next();
+                bot.reply(message, 'OK, looking for ' + response.text);
+				matchIMChannel(response.text, convo);
+//				convo.next();
 			});			
 			convo.on('end', function(convo) {
 				if (convo.status == 'completed') {
-                    bot.reply(message, 'We\'re done');
+					bot.reply(message, 'Thanks!');
 				}
 				else {
 					// this happens if the conversation ended prematurely for some reason
@@ -165,75 +206,6 @@ controller.hears(['http(.*)', 'https(.*)'], 'direct_message,direct_mention,menti
 		};
 	});
 });
-
-
-controller.hears(['what is my name', 'who am i'], 'direct_message,direct_mention,mention', function(bot, message) {
-    controller.storage.users.get(message.user, function(err, user) {
-        if (user && user.name) {
-            bot.reply(message, 'Your name is ' + user.name);
-        } else {
-            bot.startConversation(message, function(err, convo) {
-                if (!err) {
-                    convo.say('I do not know your name yet!');
-                    convo.ask('What should I call you?', function(response, convo) {
-                        convo.ask('You want me to call you `' + response.text + '`?', [
-                            {
-                                pattern: bot.utterances.yes,
-                                callback: function(response, convo) {
-                                    // since no further messages are queued after this,
-                                    // the conversation will end naturally with status == 'completed'
-                                    convo.next();
-                                }
-                            },
-                            {
-                                pattern: 'no',
-                                callback: function(response, convo) {
-                                    // stop the conversation. this will cause it to end with status == 'stopped'
-                                    convo.stop();
-                                }
-                            },
-                            {
-                                default: true,
-                                callback: function(response, convo) {
-                                    convo.repeat();
-                                    convo.next();
-                                }
-                            }
-                        ]);
-
-                        convo.next();
-
-                    }, {'key': 'nickname'}); // store the results in a field called nickname
-
-                    convo.on('end', function(convo) {
-                        if (convo.status == 'completed') {
-                            bot.reply(message, 'OK! I will update my dossier...');
-
-                            controller.storage.users.get(message.user, function(err, user) {
-                                if (!user) {
-                                    user = {
-                                        id: message.user,
-                                    };
-                                }
-                                user.name = convo.extractResponse('nickname');
-                                controller.storage.users.save(user, function(err, id) {
-                                    bot.reply(message, 'Got it. I will call you ' + user.name + ' from now on.');
-                                });
-                            });
-
-
-
-                        } else {
-                            // this happens if the conversation ended prematurely for some reason
-                            bot.reply(message, 'OK, nevermind!');
-                        }
-                    });
-                }
-            });
-        }
-    });
-});
-
 
 controller.hears(['shutdown'], 'direct_message,direct_mention,mention', function(bot, message) {
 
@@ -275,17 +247,17 @@ controller.hears(['uptime', 'identify yourself', 'who are you', 'what is your na
 
     });
 	
-function matchIMChannel (channel) {
+function matchIMChannel (channel, convo) {
 	var url = 'http://impactmonitor.net/app/api/channels.php';
 
-	var matchname = [];
+	var matchstring = '';
+	matchchannels = [];
 	
 	var qs = {
         action: 'list',
-        api_key: process.env.IM_KEY_CFA
+        api_key: process.env.IM_KEY_ICFJ
     };
 	var query = querystring.stringify(qs);
-	
 
 	http.get(url + '?' + query, function(gtresp) {
 	//console.log("Get response: " + gtresp.statusCode);
@@ -299,27 +271,67 @@ function matchIMChannel (channel) {
 		});
 		gtresp.on('end', function() {
 //			console.log("BODY: " + body);
-			
+		
 			var jbody = JSON.parse(body);
-
 			if (jbody.channels) {
 				for (var i=0; i<jbody.channels.length; i++) {
 					// matches the search? (case-insensitive search!)
 					if (jbody.channels[i].name.toLowerCase().indexOf(channel.toLowerCase()) > -1) {
-						console.log('result:', jbody.channels[i].channel_id, jbody.channels[i].name);					
-						matchname.push(new Array(jbody.channels[i].channel_id, jbody.channels[i].name));
+						console.log('result:', jbody.channels[i].channel_id, jbody.channels[i].name, jbody.channels[i].unique_id_token);	
+						// asve the channel data
+						matchchannels.push({id: jbody.channels[i].channel_id, name: jbody.channels[i].name, token: jbody.channels[i].unique_id_token});
+						// build the response string
+						matchstring += '[' + jbody.channels[i].channel_id + '] ' + jbody.channels[i].name + ' ;';							
 					}
 				}
 			} 
+			
+			console.log('matchstring', matchstring);
+			if (matchstring.length > 0) {
+				convo.setVar('channels', matchstring);
+				convo.changeTopic('yes_thread');				
+			}
 			else 
 			{ 
-				
+				convo.setVar('channels', 'no match');
+				convo.changeTopic('no_thread');
 			}
+		});
+	});	
+	
+//	console.log(matchstring);
+//	return matchstring;		
+}
+
+function addImpactURL(newlink, linkchannel) {
+	var url = 'http://impactmonitor.net/app/api/channels.php';
+
+	console.log("adding", newlink, linkchannel);
+	
+	var qs = {
+        action: 'add_item',
+        api_key: process.env.IM_KEY_ICFJ,
+		uniqueid: linkchannel,
+		item: newlink
+    };
+	var query = querystring.stringify(qs);
+
+	http.get(url + '?' + query, function(gtresp) {
+	//console.log("Get response: " + gtresp.statusCode);
+		
+		var body = '';
+		
+		gtresp.setEncoding('utf8');
+						
+		gtresp.on('data', function(chunk) {
+			body += chunk;
+		});
+		gtresp.on('end', function() {
+			console.log("RESPONSE: " + body);
 		
 		});
 	});	
 	
-	return matchname;
 }
 
 function formatUptime(uptime) {
