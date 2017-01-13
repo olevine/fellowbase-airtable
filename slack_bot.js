@@ -101,7 +101,7 @@ controller.hears(['hello', 'hi'], 'direct_message,direct_mention,mention', funct
         if (user && user.name) {
             bot.reply(message, 'Hello ' + user.name + '!!');
         } else {
-            bot.reply(message, '(local) Hello.');
+            bot.reply(message, 'Hello.');
         }
     });
 });
