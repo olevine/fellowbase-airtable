@@ -1,3 +1,9 @@
+# Solidify Impact Monitor bot for ICFJ
+
+Enables Slack users to add a link to the EJC [Impact Monitor](http://www.impactmonitor.net/app/) directly from Slack to a specific channel 
+
+Based on 
+
 # [Botkit](http://howdy.ai/botkit) - Building Blocks for Building Bots
 
 [![npm](https://img.shields.io/npm/v/botkit.svg)](https://www.npmjs.com/package/botkit)
