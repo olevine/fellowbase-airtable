@@ -75,7 +75,8 @@ var http = require('http');
 var querystring = require('querystring');
 
 var controller = Botkit.slackbot({
-    debug: false,
+     hostname: '0.0.0.0',
+	 debug: false,
 });
 
 var bot = controller.spawn({
