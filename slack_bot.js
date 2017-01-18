@@ -75,13 +75,13 @@ var http = require('http');
 var querystring = require('querystring');
 
 var controller = Botkit.slackbot({
-     hostname: '0.0.0.0',
-	 debug: false,
+     debug: false,
 });
 
 var bot = controller.spawn({
     token: process.env.token
 }).startRTM();
+
 
 var matchchannels = [];
 
@@ -352,3 +352,14 @@ function formatUptime(uptime) {
     uptime = uptime + ' ' + unit;
     return uptime;
 }
+
+
+// create dummy server that heroku can bind to, to prevent R10 error
+var express = require('express');
+var app = express();
+var port = process.env.PORT || 5000;
+//port for Heroku
+app.set('port', (port));
+app.listen(app.get('port'), function() {
+  console.log('Node app is running on port', app.get('port'));
+});
