@@ -136,7 +136,10 @@ controller.hears(['http(.*)', 'https(.*)'], 'direct_message,direct_mention,menti
 		console.log('input message', inputlink, newlink);
 
 		// create a path for when there are matching channels
-		convo.addQuestion("Pick a channel number from the list: {{vars.channels}}",
+		convo.addQuestion({
+			text: "Pick a channel number from the list: {{vars.channels}}",
+			action: 'completed' 
+			},
 			function(response, convo) {
 				
 				// find the channel data in the array
