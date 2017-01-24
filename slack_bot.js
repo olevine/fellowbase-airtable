@@ -74,6 +74,16 @@ var os = require('os');
 var http = require('http');
 var querystring = require('querystring');
 
+// create dummy server that heroku can bind to, to prevent R10 error
+var express = require('express');
+var app = express();
+var port = process.env.PORT || 5000;
+//port for Heroku
+app.set('port', (port));
+app.listen(app.get('port'), function() {
+  console.log('Node app is running on port', app.get('port'));
+});
+
 var controller = Botkit.slackbot({
      debug: false,
 });
@@ -124,7 +134,6 @@ controller.hears(['call me (.*)', 'my name is (.*)'], 'direct_message,direct_men
 
 controller.hears(['http(.*)', 'https(.*)'], 'direct_message,direct_mention,mention', function(bot, message) {
 
-	
     bot.startConversation(message, function(err, convo) {
 		
 		var re = /<(.*)>/;
@@ -357,12 +366,3 @@ function formatUptime(uptime) {
 }
 
 
-// create dummy server that heroku can bind to, to prevent R10 error
-var express = require('express');
-var app = express();
-var port = process.env.PORT || 5000;
-//port for Heroku
-app.set('port', (port));
-app.listen(app.get('port'), function() {
-  console.log('Node app is running on port', app.get('port'));
-});
