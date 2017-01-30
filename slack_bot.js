@@ -179,6 +179,7 @@ controller.hears(['http(.*)', 'https(.*)'], 'direct_message,direct_mention,menti
 		
 		if (!err) {
 			convo.setVar('impactlink', message.input);
+/*
 			convo.ask('That looks like an impact link! Should I add it to Impact Monitor?', [
 				{	
 					pattern: 'yes',
@@ -202,7 +203,8 @@ controller.hears(['http(.*)', 'https(.*)'], 'direct_message,direct_mention,menti
                     }					
 				}
 			]);
-			convo.ask('What project is this for?', function(response, convo) {
+*/
+			convo.ask("I'll add that link to Impact Monitor. What project is it for?", function(response, convo) {
                 bot.reply(message, 'OK, looking for ' + response.text);
 				matchIMChannel(response.text, convo);
 //				convo.next();
@@ -213,7 +215,7 @@ controller.hears(['http(.*)', 'https(.*)'], 'direct_message,direct_mention,menti
 				}
 				else {
 					// this happens if the conversation ended prematurely for some reason
-                    bot.reply(message, 'OK, nevermind!');
+                    bot.reply(message, "We're done!");
 				}
 			});
 		};
